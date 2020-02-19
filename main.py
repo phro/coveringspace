@@ -3,6 +3,7 @@ from math import sin, cos, pi
 from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
 from panda3d.core import WindowProperties
+from panda3d.core import Vec3
 import sys
 
 # Debugging
@@ -17,16 +18,46 @@ class MyApp(ShowBase):
               int(self.win.getProperties().getXSize() / 2),
               int(self.win.getProperties().getYSize() / 2))
 
+    def updateKeyMap(self, controlName, controlState):
+        """ Update the key map
+
+        :controlName:  The specific key
+        :controlState: Boolean
+        """
+        self.keyMap[controlName] = controlState
+
     def __init__(self):
         ShowBase.__init__(self)
         self.disableMouse()
+
+        self.keyMap = {
+                "up"    : False,
+                "down"  : False,
+                "right" : False,
+                "left"  : False,
+                }
+
+        self.keymapping= zip(
+                (",", "a", "e", "o"),
+                #  ("w", "a", "s", "d"),
+                ("up", "left", "right", "down")
+                )
+        for key, keyname in self.keymapping:
+            self.accept(key,    
+                    self.updateKeyMap, [keyname, True ])
+            self.accept(key+"-up",
+                    self.updateKeyMap, [keyname, False])
+        self.movementDirs = [
+                ("up",    Vec3.unitY()),
+                ("left", -Vec3.unitX()),
+                ("right", Vec3.unitX()),
+                ("down", -Vec3.unitY())
+                ]
 
         self.plane = self.loader.loadModel("models/plane.bam")
         self.plane.reparentTo(self.render)
         self.cube = self.loader.loadModel("models/cube.bam")
         self.cube.reparentTo(self.render)
-
-        self.accept('a', lambda: self.recenterMouse())
 
         self.accept('escape', sys.exit, [0])
 
@@ -34,10 +65,11 @@ class MyApp(ShowBase):
         self.cube.setPos(0,0,1)
         self.camera.lookAt(self.cube)
 
-        self.taskMgr.add(self.updateCameraTask, "Update Camera Task")
+        self.taskMgr.add(self.mouseWatchTask, "Mouse Watch Task")
+        self.taskMgr.add(self.keyboardWatchTask, "Keyboard Watch Task")
 
-        self.mouseText = self.genLabelText("",1)
-        self.lastMouseX, self.lastMouseY = None, None
+        self.debugText = self.genLabelText("",1)
+
         wp = WindowProperties()
         wp.setMouseMode(WindowProperties.M_confined)
         wp.setCursorHidden(True)
@@ -48,7 +80,16 @@ class MyApp(ShowBase):
                       align = TextNode.ALeft, scale = .05)
         return text
 
-    def updateCameraTask(self, task):
+    def keyboardWatchTask(self, task):
+        """Handle keyboard input"""
+        dt = globalClock.getDt()
+
+        for keyname, dir in self.movementDirs:
+            if self.keyMap[keyname]:
+                self.camera.setPos(self.camera,dir.__mul__(5*dt))
+        return Task.cont
+
+    def mouseWatchTask(self, task):
         """Update the camera to the mouse's movement."""
         mw = base.mouseWatcherNode
 
@@ -57,19 +98,17 @@ class MyApp(ShowBase):
             dx, dy = mw.getMouseX(), mw.getMouseY()
         else:
             dx, dy = 0, 0
-        self.mouseText.setText("(dx,dy) = ({},{})".format(dx,dy))
         self.recenterMouse()
 
-        self.camera.setH(self.camera.getH()+20*dx)
-        p=self.camera.getP()-20*dy
-        #  self.mouseText.setText("(x,y) = ({},{}), (dx,dy) = ({},{})".format(x,y,dx,dy))
-        #  self.mouseText.setText("Camera Pitch: {}".format(p))
-        if p<-20:
-            self.camera.setP(-20)
-        elif p>10:
-            self.camera.setP(10)
+        self.camera.setH(self.camera.getH()-20*dx)
+        p=self.camera.getP()+40*dy
+        if p<-90:
+            self.camera.setP(-90)
+        elif p>90:
+            self.camera.setP(90)
         else:
             self.camera.setP(p)
+        self.debugText.setText("Pitch: {}".format(self.camera.getP()))
         return Task.cont
 
 app=MyApp()
