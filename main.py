@@ -4,6 +4,7 @@ from direct.showbase.ShowBase import ShowBase
 from direct.task import Task
 from panda3d.core import WindowProperties
 from panda3d.core import Vec3
+from panda3d.core import CollisionTraverser
 import sys
 
 # Debugging
@@ -35,18 +36,22 @@ class MyApp(ShowBase):
                 "down"  : False,
                 "right" : False,
                 "left"  : False,
+                "sink"  : False,
+                "rise"  : False
                 }
 
         self.keymapping= zip(
-                (",", "a", "e", "o"),
-                #  ("w", "a", "s", "d"),
-                ("up", "left", "right", "down")
+                (",", "a", "e", "o", "lshift", "space"),
+                #  ("w", "a", "s", "d", "lshift", "space"),
+                ("up", "left", "right", "down", "sink", "rise")
                 )
         for key, keyname in self.keymapping:
             self.accept(key,    
                     self.updateKeyMap, [keyname, True ])
             self.accept(key+"-up",
                     self.updateKeyMap, [keyname, False])
+        self.accept('escape', sys.exit, [0])
+
         self.movementDirs = [
                 ("up",    Vec3.unitY()),
                 ("left", -Vec3.unitX()),
@@ -59,7 +64,7 @@ class MyApp(ShowBase):
         self.cube = self.loader.loadModel("models/cube.bam")
         self.cube.reparentTo(self.render)
 
-        self.accept('escape', sys.exit, [0])
+        self.cTrav = CollisionTraverser()
 
         self.camera.setPos(0,-20,3)
         self.cube.setPos(0,0,1)
@@ -71,7 +76,7 @@ class MyApp(ShowBase):
         self.debugText = self.genLabelText("",1)
 
         wp = WindowProperties()
-        wp.setMouseMode(WindowProperties.M_confined)
+        wp.setMouseMode(WindowProperties.M_relative)
         wp.setCursorHidden(True)
         self.win.requestProperties(wp)
 
@@ -86,7 +91,11 @@ class MyApp(ShowBase):
 
         for keyname, dir in self.movementDirs:
             if self.keyMap[keyname]:
-                self.camera.setPos(self.camera,dir.__mul__(5*dt))
+                self.camera.setPos(self.camera,dir.__mul__(10*dt))
+        if self.keyMap["sink"]:
+            self.camera.setPos(self.camera.getPos()-Vec3.unitZ().__mul__(10*dt))
+        if self.keyMap["rise"]:
+            self.camera.setPos(self.camera.getPos()+Vec3.unitZ().__mul__(10*dt))
         return Task.cont
 
     def mouseWatchTask(self, task):
@@ -100,15 +109,20 @@ class MyApp(ShowBase):
             dx, dy = 0, 0
         self.recenterMouse()
 
-        self.camera.setH(self.camera.getH()-20*dx)
-        p=self.camera.getP()+40*dy
+        scrWidth  = self.win.getProperties().getXSize()
+        scrHeight = self.win.getProperties().getYSize()
+
+        self.camera.setH(self.camera.getH()-20*dx)#/scrWidth)
+        p=self.camera.getP()+20*dy#/scrHeight
         if p<-90:
             self.camera.setP(-90)
         elif p>90:
             self.camera.setP(90)
         else:
             self.camera.setP(p)
-        self.debugText.setText("Pitch: {}".format(self.camera.getP()))
+        self.debugText.setText(
+                "Pitch: {}\nScreen size: {}".format(
+                    self.camera.getP(), (scrWidth,scrHeight)))
         return Task.cont
 
 app=MyApp()
